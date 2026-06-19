@@ -1,4 +1,4 @@
-"""Tests for the Phase 1 command-line interface."""
+"""Tests for the command-line interface."""
 
 from __future__ import annotations
 
@@ -18,7 +18,43 @@ class MainTests(unittest.TestCase):
             exit_code = main([str(project_path)])
         return exit_code, output.getvalue()
 
-    def test_success_output(self) -> None:
+    def test_success_output_contains_project_information(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            (project_path / "pubspec.yaml").write_text(
+                "name: example_app\n"
+                "version: 1.0.0+1\n"
+                "environment:\n"
+                '  sdk: ">=3.0.0 <4.0.0"\n'
+                "dependencies:\n"
+                "  camera: ^0.11.0\n"
+                "  image_picker: ^1.0.0\n",
+                encoding="utf-8",
+            )
+            (project_path / "ios" / "Runner").mkdir(parents=True)
+            (project_path / "ios" / "Podfile").touch()
+            (project_path / "ios" / "Runner" / "Info.plist").touch()
+
+            exit_code, output = self.run_cli(project_path)
+
+            self.assertEqual(exit_code, 0)
+            for expected_text in (
+                "✓ Folder Found",
+                "✓ Flutter Project Detected",
+                "✓ pubspec.yaml Loaded",
+                "Project Information",
+                "Name: example_app",
+                "Version: 1.0.0+1",
+                "SDK Constraint: >=3.0.0 <4.0.0",
+                "camera",
+                "image_picker",
+                "✓ iOS Folder Found",
+                "✓ Podfile Found",
+                "✓ Info.plist Found",
+            ):
+                self.assertIn(expected_text, output)
+
+    def test_missing_ios_files_are_reported_without_failing_scan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory)
             (project_path / "pubspec.yaml").write_text(
@@ -28,18 +64,9 @@ class MainTests(unittest.TestCase):
             exit_code, output = self.run_cli(project_path)
 
             self.assertEqual(exit_code, 0)
-            self.assertEqual(
-                output,
-                "## Flutter iOS Readiness Analyzer\n"
-                "\n"
-                "✓ Folder Found\n"
-                "\n"
-                "✓ Flutter Project Detected\n"
-                "\n"
-                "✓ pubspec.yaml Loaded\n"
-                "\n"
-                "Ready For Analysis\n",
-            )
+            self.assertIn("✗ iOS Folder Missing", output)
+            self.assertIn("✗ Podfile Missing", output)
+            self.assertIn("✗ Info.plist Missing", output)
 
     def test_missing_folder_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -56,6 +83,18 @@ class MainTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(output, "✗ Not a Flutter project\n")
+
+    def test_invalid_pubspec_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            (project_path / "pubspec.yaml").write_text(
+                "dependencies: [invalid", encoding="utf-8"
+            )
+
+            exit_code, output = self.run_cli(project_path)
+
+            self.assertEqual(exit_code, 1)
+            self.assertTrue(output.startswith("✗ Unable to parse pubspec.yaml:"))
 
 
 if __name__ == "__main__":

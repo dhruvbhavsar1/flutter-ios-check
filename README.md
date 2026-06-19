@@ -1,47 +1,50 @@
 # Flutter iOS Readiness Analyzer
 
-Flutter iOS Readiness Analyzer is an open-source command-line tool that checks
-whether a Flutter project can be loaded for future iOS readiness analysis.
+Flutter iOS Readiness Analyzer is an open-source CLI that inspects a Flutter
+project before iOS testing.
 
-This repository currently implements **Phase 1 only**. It validates that:
+The repository currently implements Phases 1 and 2:
 
-- the supplied project folder exists;
-- the folder contains a `pubspec.yaml` file; and
-- `pubspec.yaml` can be opened and read.
+- validates that the project folder exists;
+- detects and reads `pubspec.yaml`;
+- extracts the project name, version, Dart SDK constraint, and dependency names;
+- detects `ios/`, `ios/Podfile`, and `ios/Runner/Info.plist`.
 
-It does not inspect plugins, Firebase, Podfiles, `Info.plist`, or calculate a
-readiness score.
+It does not perform plugin intelligence, permission or Firebase analysis,
+scoring, reporting, automation, UI, AI, or cloud features.
 
 ## Requirements
 
 - Python 3.11 or newer
-
-Phase 1 has no third-party runtime dependencies.
+- PyYAML 6.x
 
 ## Project structure
 
 ```text
 flutter-ios-checker/
-├── main.py
-├── requirements.txt
-├── README.md
-├── analyzers/
-│   ├── __init__.py
-│   └── project_validator.py
-├── rules/
-│   └── __init__.py
-└── tests/
-    ├── __init__.py
-    ├── test_main.py
-    └── test_project_validator.py
+|-- main.py
+|-- requirements.txt
+|-- README.md
+|-- analyzers/
+|   |-- __init__.py
+|   |-- project_validator.py
+|   `-- project_scanner.py
+|-- models/
+|   |-- __init__.py
+|   `-- project_info.py
+|-- rules/
+|   `-- __init__.py
+`-- tests/
+    |-- __init__.py
+    |-- test_main.py
+    |-- test_project_scanner.py
+    `-- test_project_validator.py
 ```
 
-## Run locally
+## Install and run
 
-Clone the repository or open a terminal in its root folder. Optionally create
-and activate a virtual environment:
-
-### Windows PowerShell
+From the repository root, optionally create a virtual environment and install
+the dependency:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -49,19 +52,19 @@ py -3.11 -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Run the analyzer with the path to a Flutter project:
+Pass the Flutter project's root folder—the folder containing `pubspec.yaml`:
 
 ```powershell
 python main.py C:\Projects\MyFlutterApp
 ```
 
-On macOS or Linux:
+If the current folder is the Flutter project:
 
-```bash
-python3 main.py /path/to/MyFlutterApp
+```powershell
+python main.py .
 ```
 
-Successful validation prints:
+Example output:
 
 ```text
 ## Flutter iOS Readiness Analyzer
@@ -72,14 +75,29 @@ Successful validation prints:
 
 ✓ pubspec.yaml Loaded
 
-Ready For Analysis
+Project Information
+
+Name: my_app
+
+Version: 1.0.0+1
+
+SDK Constraint: >=3.0.0 <4.0.0
+
+Dependencies:
+camera
+image_picker
+
+✓ iOS Folder Found
+
+✓ Podfile Found
+
+✓ Info.plist Found
 ```
 
-Validation failures print a clear message and return exit code `1`.
+Missing optional iOS files are reported but do not make the scan fail.
+Validation or YAML parsing failures return exit code `1`.
 
 ## Run tests
-
-No additional test framework is required:
 
 ```powershell
 python -m unittest discover -s tests -v
