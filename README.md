@@ -1,17 +1,19 @@
 # Flutter iOS Readiness Analyzer
 
-Flutter iOS Readiness Analyzer is an open-source CLI that inspects a Flutter
-project before iOS testing.
+Flutter iOS Readiness Analyzer is an open-source Python CLI that inspects a
+Flutter project before iOS testing.
 
-The repository currently implements Phases 1 and 2:
+The repository currently implements Phases 1 through 3:
 
-- validates that the project folder exists;
-- detects and reads `pubspec.yaml`;
-- extracts the project name, version, Dart SDK constraint, and dependency names;
-- detects `ios/`, `ios/Podfile`, and `ios/Runner/Info.plist`.
+- validates the project folder and `pubspec.yaml`;
+- extracts project name, version, Dart SDK constraint, and dependencies;
+- detects `ios/`, `ios/Podfile`, and `ios/Runner/Info.plist`;
+- applies a rule engine and produces PASS, INFO, and ERROR findings;
+- classifies dependencies using a small JSON plugin database.
 
-It does not perform plugin intelligence, permission or Firebase analysis,
-scoring, reporting, automation, UI, AI, or cloud features.
+The tool does not validate permissions, Firebase configuration, deployment
+targets, or calculate a readiness score. It also has no HTML reporting,
+automation, editor extension, desktop UI, AI, or cloud functionality.
 
 ## Requirements
 
@@ -26,25 +28,24 @@ flutter-ios-checker/
 |-- requirements.txt
 |-- README.md
 |-- analyzers/
-|   |-- __init__.py
 |   |-- project_validator.py
-|   `-- project_scanner.py
+|   |-- project_scanner.py
+|   `-- rule_engine.py
 |-- models/
-|   |-- __init__.py
-|   `-- project_info.py
+|   |-- project_info.py
+|   `-- finding.py
 |-- rules/
-|   `-- __init__.py
+|   `-- plugins.json
 `-- tests/
-    |-- __init__.py
     |-- test_main.py
+    |-- test_project_validator.py
     |-- test_project_scanner.py
-    `-- test_project_validator.py
+    `-- test_rule_engine.py
 ```
 
 ## Install and run
 
-From the repository root, optionally create a virtual environment and install
-the dependency:
+From the repository root:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -52,50 +53,57 @@ py -3.11 -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Pass the Flutter project's root folder—the folder containing `pubspec.yaml`:
+Pass the Flutter project root—the folder containing `pubspec.yaml`:
 
 ```powershell
 python main.py C:\Projects\MyFlutterApp
 ```
 
-If the current folder is the Flutter project:
+Use `.` when the current directory is the Flutter project:
 
 ```powershell
 python main.py .
 ```
 
-Example output:
+The report includes project information, detected plugins, and findings:
 
 ```text
 ## Flutter iOS Readiness Analyzer
 
-✓ Folder Found
-
-✓ Flutter Project Detected
-
-✓ pubspec.yaml Loaded
-
 Project Information
 
 Name: my_app
-
 Version: 1.0.0+1
-
 SDK Constraint: >=3.0.0 <4.0.0
 
-Dependencies:
+Detected Plugins:
 camera
-image_picker
+custom_package
+
+Analysis Findings
 
 ✓ iOS Folder Found
+The Flutter project contains an iOS directory.
 
-✓ Podfile Found
+ℹ Plugin Detected
+camera
 
-✓ Info.plist Found
+ℹ Known iOS Plugin
+camera
+Category: permission
+
+ℹ Plugin Detected
+custom_package
+
+ℹ Unknown Plugin
+custom_package
+No rule currently exists.
+
+Analysis Complete
 ```
 
-Missing optional iOS files are reported but do not make the scan fail.
-Validation or YAML parsing failures return exit code `1`.
+Categories in `rules/plugins.json` are labels for future rules. Phase 3 does
+not perform category-specific validation.
 
 ## Run tests
 

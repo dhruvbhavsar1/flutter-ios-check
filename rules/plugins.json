@@ -1,0 +1,26 @@
+{
+  "camera": {
+    "category": "permission"
+  },
+  "image_picker": {
+    "category": "permission"
+  },
+  "geolocator": {
+    "category": "permission"
+  },
+  "permission_handler": {
+    "category": "permission"
+  },
+  "firebase_core": {
+    "category": "firebase"
+  },
+  "firebase_messaging": {
+    "category": "firebase"
+  },
+  "flutter_local_notifications": {
+    "category": "notification"
+  },
+  "url_launcher": {
+    "category": "url"
+  }
+}

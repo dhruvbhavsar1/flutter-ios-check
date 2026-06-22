@@ -9,6 +9,8 @@ from typing import Sequence
 
 from analyzers.project_scanner import ProjectScanError, scan_project
 from analyzers.project_validator import ProjectValidationError
+from analyzers.rule_engine import RuleEngineError, analyze_project
+from models.finding import Finding, Severity
 from models.project_info import ProjectInfo
 
 
@@ -39,16 +41,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         project_info = scan_project(args.flutter_project_path)
-    except (ProjectValidationError, ProjectScanError) as error:
+        findings = analyze_project(project_info)
+    except (ProjectValidationError, ProjectScanError, RuleEngineError) as error:
         print(f"\u2717 {error}")
         return 1
 
-    print_report(project_info)
+    print_report(project_info, findings)
     return 0
 
 
-def print_report(project_info: ProjectInfo) -> None:
-    """Display validation results and collected project information."""
+def print_report(project_info: ProjectInfo, findings: list[Finding]) -> None:
+    """Display project information and rule-engine findings."""
     print("## Flutter iOS Readiness Analyzer")
     print()
     print("\u2713 Folder Found")
@@ -72,17 +75,31 @@ def print_report(project_info: ProjectInfo) -> None:
     else:
         print("None")
     print()
-    print(_status_line(project_info.ios_folder_exists, "iOS Folder"))
+    print("Detected Plugins:")
+    if project_info.dependencies:
+        for plugin_name in project_info.dependencies:
+            print(plugin_name)
+    else:
+        print("None")
     print()
-    print(_status_line(project_info.podfile_exists, "Podfile"))
+    print("Analysis Findings")
     print()
-    print(_status_line(project_info.plist_exists, "Info.plist"))
+    for finding in findings:
+        print_finding(finding)
+        print()
+    print("Analysis Complete")
 
 
-def _status_line(exists: bool, label: str) -> str:
-    status = "Found" if exists else "Missing"
-    symbol = "\u2713" if exists else "\u2717"
-    return f"{symbol} {label} {status}"
+def print_finding(finding: Finding) -> None:
+    """Display one finding with a severity-specific symbol."""
+    symbols = {
+        Severity.PASS: "\u2713",
+        Severity.INFO: "\u2139",
+        Severity.WARNING: "\u26a0",
+        Severity.ERROR: "\u274c",
+    }
+    print(f"{symbols[finding.severity]} {finding.title}")
+    print(finding.message)
 
 
 if __name__ == "__main__":
