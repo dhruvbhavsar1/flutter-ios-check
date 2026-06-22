@@ -1,26 +1,42 @@
 {
   "camera": {
-    "category": "permission"
+    "category": "Permission",
+    "status": "warning",
+    "note": "Requires camera and microphone usage descriptions when those features are used."
   },
   "image_picker": {
-    "category": "permission"
+    "category": "Permission",
+    "status": "compatible",
+    "note": "Supported on iOS; photo or camera access may require usage descriptions."
   },
   "geolocator": {
-    "category": "permission"
+    "category": "Permission",
+    "status": "compatible",
+    "note": "Supported on iOS; location features require usage descriptions."
   },
   "permission_handler": {
-    "category": "permission"
+    "category": "Permission",
+    "status": "compatible",
+    "note": "Supported on iOS; enable only the permissions used by the app."
   },
   "firebase_core": {
-    "category": "firebase"
+    "category": "Firebase",
+    "status": "compatible",
+    "note": "Compatible with iOS when Firebase is configured correctly."
   },
   "firebase_messaging": {
-    "category": "firebase"
+    "category": "Firebase",
+    "status": "compatible",
+    "note": "Supported on iOS; push notification setup is required."
   },
   "flutter_local_notifications": {
-    "category": "notification"
+    "category": "Notification",
+    "status": "compatible",
+    "note": "Supported on iOS; notification authorization may be required."
   },
   "url_launcher": {
-    "category": "url"
+    "category": "URL",
+    "status": "compatible",
+    "note": "Compatible with iOS."
   }
 }

@@ -13,6 +13,7 @@ class Severity(StrEnum):
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,3 +23,4 @@ class Finding:
     severity: Severity
     title: str
     message: str
+    recommendation: str = ""

@@ -1,4 +1,4 @@
-"""Tests for the command-line interface."""
+"""Tests for concise scan and detailed plugin CLI output."""
 
 from __future__ import annotations
 
@@ -12,95 +12,138 @@ from main import main
 
 
 class MainTests(unittest.TestCase):
-    def run_cli(self, project_path: Path) -> tuple[int, str]:
+    def run_cli(self, arguments: list[str]) -> tuple[int, str]:
         output = io.StringIO()
         with redirect_stdout(output):
-            exit_code = main([str(project_path)])
+            exit_code = main(arguments)
         return exit_code, output.getvalue()
 
-    def test_success_output_contains_project_information_and_findings(self) -> None:
+    def create_project(self, root: Path, *, complete_ios: bool = True) -> None:
+        (root / "pubspec.yaml").write_text(
+            "name: example_app\n"
+            "version: 1.0.0+1\n"
+            "environment:\n"
+            '  sdk: ">=3.0.0 <4.0.0"\n'
+            "dependencies:\n"
+            "  firebase_core: ^3.0.0\n"
+            "  camera: ^0.11.0\n"
+            "  custom_package: ^1.0.0\n",
+            encoding="utf-8",
+        )
+        if complete_ios:
+            (root / "ios" / "Runner").mkdir(parents=True)
+            (root / "ios" / "Podfile").touch()
+            (root / "ios" / "Runner" / "Info.plist").touch()
+
+    def test_default_scan_is_concise_and_does_not_list_plugins(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory)
-            (project_path / "pubspec.yaml").write_text(
-                "name: example_app\n"
-                "version: 1.0.0+1\n"
-                "environment:\n"
-                '  sdk: ">=3.0.0 <4.0.0"\n'
-                "dependencies:\n"
-                "  camera: ^0.11.0\n"
-                "  custom_package: ^1.0.0\n",
-                encoding="utf-8",
-            )
-            (project_path / "ios" / "Runner").mkdir(parents=True)
-            (project_path / "ios" / "Podfile").touch()
-            (project_path / "ios" / "Runner" / "Info.plist").touch()
+            self.create_project(project_path)
 
-            exit_code, output = self.run_cli(project_path)
+            exit_code, output = self.run_cli(["scan", str(project_path)])
 
             self.assertEqual(exit_code, 0)
-            for expected_text in (
-                "\u2713 Folder Found",
-                "\u2713 Flutter Project Detected",
-                "\u2713 pubspec.yaml Loaded",
-                "Project Information",
-                "Name: example_app",
+            for expected in (
+                "\U0001f34e Flutter iOS Readiness Report",
+                "Project: example_app",
                 "Version: 1.0.0+1",
-                "SDK Constraint: >=3.0.0 <4.0.0",
-                "Detected Plugins:",
-                "Analysis Findings",
-                "\u2713 iOS Folder Found",
-                "\u2713 Podfile Found",
-                "\u2713 Info.plist Found",
-                "\u2139 Plugin Detected",
-                "\u2139 Known iOS Plugin",
-                "camera\nCategory: permission",
-                "\u2139 Unknown Plugin",
-                "custom_package\nNo rule currently exists.",
-                "Analysis Complete",
+                "Status: READY",
+                "Readiness Score: 93/100",
+                "\u2705 iOS Folder",
+                "\u2705 Info.plist",
+                "\u2705 Podfile",
+                "Known Compatible: 1",
+                "Known Warning: 1",
+                "Unknown: 1",
+                "Result: READY FOR iOS BUILD",
             ):
-                self.assertIn(expected_text, output)
+                self.assertIn(expected, output)
+            self.assertNotIn("firebase_core\n", output)
+            self.assertNotIn("Plugin Detected", output)
+            self.assertLessEqual(len(output.splitlines()), 30)
 
-    def test_missing_ios_files_generate_error_findings(self) -> None:
+    def test_legacy_path_argument_still_runs_scan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory)
-            (project_path / "pubspec.yaml").write_text(
-                "name: example_app\n", encoding="utf-8"
-            )
+            self.create_project(project_path)
 
-            exit_code, output = self.run_cli(project_path)
+            exit_code, output = self.run_cli([str(project_path)])
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("\u274c iOS Folder Missing", output)
-            self.assertIn("\u274c Missing Podfile", output)
-            self.assertIn("\u274c Missing Info.plist", output)
+            self.assertIn("Flutter iOS Readiness Report", output)
 
-    def test_missing_folder_output_preserves_phase_1_behavior(self) -> None:
+    def test_missing_files_show_critical_issues_and_recommendations(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            self.create_project(project_path, complete_ios=False)
+
+            exit_code, output = self.run_cli(["scan", str(project_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("Status: NOT READY", output)
+            self.assertIn("\U0001f6a8 Missing iOS Folder", output)
+            self.assertIn("\u274c Missing Info.plist", output)
+            self.assertIn("\u274c Missing Podfile", output)
+            self.assertIn("flutter create .", output)
+            self.assertIn("Result: NOT READY FOR iOS BUILD", output)
+
+    def test_plugins_command_groups_plugins_without_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            self.create_project(project_path)
+
+            exit_code, output = self.run_cli(["plugins", str(project_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("Known Compatible (1)", output)
+            self.assertIn("\u2705 firebase_core", output)
+            self.assertIn("Known Warning (1)", output)
+            self.assertIn("\u26a0 camera", output)
+            self.assertIn("Unknown (1)", output)
+            self.assertIn("\u2022 custom_package", output)
+            self.assertEqual(output.count("firebase_core"), 1)
+
+    def test_plugin_filters_show_only_requested_classification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            self.create_project(project_path)
+
+            _, known_output = self.run_cli(
+                ["plugins", str(project_path), "--known"]
+            )
+            _, unknown_output = self.run_cli(
+                ["plugins", str(project_path), "--unknown"]
+            )
+
+            self.assertIn("firebase_core", known_output)
+            self.assertIn("camera", known_output)
+            self.assertNotIn("custom_package", known_output)
+            self.assertIn("custom_package", unknown_output)
+            self.assertNotIn("firebase_core", unknown_output)
+
+    def test_verbose_scan_displays_plugin_metadata_and_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            self.create_project(project_path)
+
+            exit_code, output = self.run_cli(
+                ["scan", str(project_path), "--verbose"]
+            )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("Detailed Plugin Analysis", output)
+            self.assertIn("firebase_core | Firebase | Compatible", output)
+            self.assertIn("camera | Permission | Warning", output)
+            self.assertIn("Diagnostics", output)
+
+    def test_validation_errors_preserve_nonzero_exit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             missing_path = Path(temporary_directory) / "missing"
 
-            exit_code, output = self.run_cli(missing_path)
+            exit_code, output = self.run_cli(["scan", str(missing_path)])
 
             self.assertEqual(exit_code, 1)
-            self.assertEqual(output, "\u2717 Project folder not found\n")
-
-    def test_non_flutter_folder_output_preserves_phase_1_behavior(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            exit_code, output = self.run_cli(Path(temporary_directory))
-
-            self.assertEqual(exit_code, 1)
-            self.assertEqual(output, "\u2717 Not a Flutter project\n")
-
-    def test_invalid_pubspec_output(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            project_path = Path(temporary_directory)
-            (project_path / "pubspec.yaml").write_text(
-                "dependencies: [invalid", encoding="utf-8"
-            )
-
-            exit_code, output = self.run_cli(project_path)
-
-            self.assertEqual(exit_code, 1)
-            self.assertTrue(output.startswith("\u2717 Unable to parse pubspec.yaml:"))
+            self.assertEqual(output, "\u274c Project folder not found\n")
 
 
 if __name__ == "__main__":

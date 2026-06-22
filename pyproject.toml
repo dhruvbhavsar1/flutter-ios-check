@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flutter-ios-checker"
+version = "0.4.0"
+description = "Analyze a Flutter project's readiness for iOS testing."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML>=6.0,<7.0",
+]
+
+[project.scripts]
+flutter-ios-check = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["analyzers*", "models*", "reporters*", "rules*"]
+
+[tool.setuptools.package-data]
+rules = ["plugins.json"]

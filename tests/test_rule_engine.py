@@ -1,4 +1,4 @@
-"""Unit tests for the Phase 3 rule engine."""
+"""Unit tests for scoring, findings, and plugin classification."""
 
 from __future__ import annotations
 
@@ -6,68 +6,84 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from analyzers.rule_engine import RuleEngineError, analyze_project, load_plugin_rules
+from analyzers.rule_engine import (
+    RuleEngineError,
+    build_analysis_report,
+    calculate_readiness_score,
+    classify_plugins,
+    load_plugin_rules,
+    readiness_status,
+)
+from models.analysis_report import ReadinessStatus
 from models.finding import Severity
+from models.plugin_info import PluginStatus
 from models.project_info import ProjectInfo
 
 
 class RuleEngineTests(unittest.TestCase):
-    def test_existing_ios_files_generate_pass_findings(self) -> None:
-        project_info = self.make_project_info(
+    def test_complete_project_with_compatible_plugins_is_ready(self) -> None:
+        project = self.make_project_info(
+            dependencies=["firebase_core", "url_launcher"],
             ios_folder_exists=True,
             podfile_exists=True,
             plist_exists=True,
         )
 
-        findings = analyze_project(project_info)
+        report = build_analysis_report(project)
+
+        self.assertEqual(report.score, 100)
+        self.assertEqual(report.status, ReadinessStatus.READY)
+        self.assertTrue(all(f.severity is Severity.PASS for f in report.findings))
+
+    def test_missing_files_generate_actionable_findings_and_low_score(self) -> None:
+        report = build_analysis_report(self.make_project_info())
+
+        self.assertEqual(report.score, 10)
+        self.assertEqual(report.status, ReadinessStatus.NOT_READY)
+        self.assertEqual(report.findings[0].severity, Severity.CRITICAL)
+        self.assertEqual(report.findings[0].title, "Missing iOS Folder")
+        self.assertIn("flutter create .", report.findings[0].recommendation)
+        self.assertEqual(report.findings[1].severity, Severity.ERROR)
+        self.assertEqual(report.findings[2].severity, Severity.ERROR)
+
+    def test_plugins_are_classified_without_duplicate_findings(self) -> None:
+        project = self.make_project_info(
+            dependencies=["firebase_core", "camera", "custom_package"],
+            ios_folder_exists=True,
+            podfile_exists=True,
+            plist_exists=True,
+        )
+
+        report = build_analysis_report(project)
 
         self.assertEqual(
-            [(finding.severity, finding.title) for finding in findings],
+            [plugin.status for plugin in report.plugins],
             [
-                (Severity.PASS, "iOS Folder Found"),
-                (Severity.PASS, "Podfile Found"),
-                (Severity.PASS, "Info.plist Found"),
+                PluginStatus.COMPATIBLE,
+                PluginStatus.WARNING,
+                PluginStatus.UNKNOWN,
             ],
         )
-
-    def test_missing_ios_files_generate_error_findings(self) -> None:
-        findings = analyze_project(self.make_project_info())
-
         self.assertEqual(
-            [(finding.severity, finding.title) for finding in findings],
-            [
-                (Severity.ERROR, "iOS Folder Missing"),
-                (Severity.ERROR, "Missing Podfile"),
-                (Severity.ERROR, "Missing Info.plist"),
-            ],
+            [finding.title for finding in report.findings],
+            ["iOS Folder", "Info.plist", "Podfile", "Plugin warning: camera"],
         )
-        self.assertEqual(
-            findings[0].message, "This project cannot be built for iOS."
-        )
+        self.assertEqual(report.score, 93)
+        self.assertEqual(report.status, ReadinessStatus.READY)
 
-    def test_known_and_unknown_plugins_generate_info_findings(self) -> None:
-        project_info = self.make_project_info(
-            dependencies=["camera", "custom_package"]
-        )
+    def test_score_is_bounded_and_status_thresholds_are_correct(self) -> None:
+        unknown_plugins = [
+            *classify_plugins([f"unknown_{index}" for index in range(20)])
+        ]
+        score = calculate_readiness_score(self.make_project_info(), unknown_plugins)
 
-        findings = analyze_project(project_info)
-        plugin_findings = findings[3:]
+        self.assertEqual(score, 0)
+        self.assertEqual(readiness_status(90), ReadinessStatus.READY)
+        self.assertEqual(readiness_status(89), ReadinessStatus.NEEDS_ATTENTION)
+        self.assertEqual(readiness_status(70), ReadinessStatus.NEEDS_ATTENTION)
+        self.assertEqual(readiness_status(69), ReadinessStatus.NOT_READY)
 
-        self.assertEqual(len(plugin_findings), 4)
-        self.assertEqual(plugin_findings[0].severity, Severity.INFO)
-        self.assertEqual(plugin_findings[0].title, "Plugin Detected")
-        self.assertEqual(plugin_findings[0].message, "camera")
-        self.assertEqual(plugin_findings[1].severity, Severity.INFO)
-        self.assertEqual(plugin_findings[1].title, "Known iOS Plugin")
-        self.assertEqual(plugin_findings[1].message, "camera\nCategory: permission")
-        self.assertEqual(plugin_findings[2].severity, Severity.INFO)
-        self.assertEqual(plugin_findings[2].title, "Plugin Detected")
-        self.assertEqual(plugin_findings[2].message, "custom_package")
-        self.assertEqual(plugin_findings[3].severity, Severity.INFO)
-        self.assertEqual(plugin_findings[3].title, "Unknown Plugin")
-        self.assertIn("No rule currently exists.", plugin_findings[3].message)
-
-    def test_initial_plugin_database_contains_required_plugins(self) -> None:
+    def test_initial_database_contains_metadata_for_required_plugins(self) -> None:
         rules = load_plugin_rules()
 
         self.assertEqual(
@@ -83,6 +99,8 @@ class RuleEngineTests(unittest.TestCase):
                 "url_launcher",
             },
         )
+        self.assertEqual(rules["firebase_core"].status, PluginStatus.COMPATIBLE)
+        self.assertEqual(rules["camera"].status, PluginStatus.WARNING)
 
     def test_missing_plugin_database_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -91,12 +109,15 @@ class RuleEngineTests(unittest.TestCase):
             with self.assertRaisesRegex(RuleEngineError, "Unable to read plugin rules"):
                 load_plugin_rules(missing_path)
 
-    def test_invalid_plugin_database_is_reported(self) -> None:
+    def test_invalid_plugin_status_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             rules_path = Path(temporary_directory) / "plugins.json"
-            rules_path.write_text('{"camera": {}}', encoding="utf-8")
+            rules_path.write_text(
+                '{"camera": {"category": "Permission", "status": "maybe"}}',
+                encoding="utf-8",
+            )
 
-            with self.assertRaisesRegex(RuleEngineError, "missing category for camera"):
+            with self.assertRaisesRegex(RuleEngineError, "invalid status for camera"):
                 load_plugin_rules(rules_path)
 
     @staticmethod
