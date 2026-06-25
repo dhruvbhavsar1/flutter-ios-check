@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Show detailed plugin metadata and diagnostics.",
+        help="Show all extracted iOS configuration values.",
     )
 
     plugins_parser = subparsers.add_parser(

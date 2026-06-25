@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import plistlib
 from pathlib import Path
 
 from analyzers.project_scanner import ProjectScanError, scan_project
@@ -27,8 +28,26 @@ class ProjectScannerTests(unittest.TestCase):
             )
             runner_path = project_path / "ios" / "Runner"
             runner_path.mkdir(parents=True)
-            (project_path / "ios" / "Podfile").touch()
-            (runner_path / "Info.plist").touch()
+            (project_path / "ios" / "Podfile").write_text(
+                "platform :ios, '13.0'\n", encoding="utf-8"
+            )
+            with (runner_path / "Info.plist").open("wb") as plist_file:
+                plistlib.dump(
+                    {
+                        "CFBundleDisplayName": "Sample App",
+                        "CFBundleIdentifier": "com.example.sample",
+                        "NSCameraUsageDescription": "Camera access",
+                        "NSPhotoLibraryUsageDescription": "Photos access",
+                        "CFBundleURLTypes": [
+                            {"CFBundleURLSchemes": ["sample", "oauth"]}
+                        ],
+                        "NSAppTransportSecurity": {
+                            "NSAllowsArbitraryLoads": False,
+                            "NSAllowsLocalNetworking": True,
+                        },
+                    },
+                    plist_file,
+                )
 
             project_info = scan_project(project_path)
 
@@ -41,6 +60,21 @@ class ProjectScannerTests(unittest.TestCase):
             self.assertTrue(project_info.ios_folder_exists)
             self.assertTrue(project_info.podfile_exists)
             self.assertTrue(project_info.plist_exists)
+            self.assertEqual(project_info.ios_deployment_target, "13.0")
+            self.assertEqual(project_info.display_name, "Sample App")
+            self.assertEqual(project_info.bundle_identifier, "com.example.sample")
+            self.assertEqual(
+                project_info.permissions,
+                ["NSCameraUsageDescription", "NSPhotoLibraryUsageDescription"],
+            )
+            self.assertEqual(project_info.url_schemes, ["oauth", "sample"])
+            self.assertEqual(
+                project_info.ats_settings,
+                {
+                    "NSAllowsArbitraryLoads": False,
+                    "NSAllowsLocalNetworking": True,
+                },
+            )
 
     def test_missing_optional_values_and_ios_files_use_safe_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -58,6 +92,12 @@ class ProjectScannerTests(unittest.TestCase):
             self.assertFalse(project_info.ios_folder_exists)
             self.assertFalse(project_info.podfile_exists)
             self.assertFalse(project_info.plist_exists)
+            self.assertIsNone(project_info.ios_deployment_target)
+            self.assertIsNone(project_info.display_name)
+            self.assertIsNone(project_info.bundle_identifier)
+            self.assertEqual(project_info.permissions, [])
+            self.assertEqual(project_info.url_schemes, [])
+            self.assertIsNone(project_info.ats_settings)
 
     def test_invalid_yaml_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

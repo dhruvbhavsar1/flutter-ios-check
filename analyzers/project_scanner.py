@@ -1,4 +1,4 @@
-"""Scan a validated Flutter project and collect Phase 2 information."""
+"""Scan a validated Flutter project and collect structured project information."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml
 
+from analyzers.ios_config_parser import IOSConfigParseError, parse_ios_configuration
 from analyzers.project_validator import validate_flutter_project
 from models.project_info import ProjectInfo
 
@@ -22,7 +23,7 @@ def scan_project(project_path: Path) -> ProjectInfo:
     pubspec = _parse_pubspec(pubspec_contents)
     ios_path = project_path / "ios"
 
-    return ProjectInfo(
+    project_info = ProjectInfo(
         project_name=_string_value(pubspec.get("name")),
         version=_string_value(pubspec.get("version")),
         sdk_constraint=_extract_sdk_constraint(pubspec),
@@ -31,6 +32,10 @@ def scan_project(project_path: Path) -> ProjectInfo:
         podfile_exists=(ios_path / "Podfile").is_file(),
         plist_exists=(ios_path / "Runner" / "Info.plist").is_file(),
     )
+    try:
+        return parse_ios_configuration(project_path, project_info)
+    except IOSConfigParseError as error:
+        raise ProjectScanError(str(error)) from error
 
 
 def _parse_pubspec(contents: str) -> dict[str, Any]:

@@ -2,39 +2,51 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from typing import Any
 
-from models.analysis_report import AnalysisReport, ReadinessStatus
-from models.finding import Finding, Severity
-from models.plugin_info import PluginInfo, PluginStatus
+from models.analysis_report import AnalysisReport
+from models.plugin_info import PluginStatus
 
-HEAVY_RULE = "\u2501" * 30
-LIGHT_RULE = "\u2500" * 29
+HEAVY_RULE = "\u2501" * 36
+LIGHT_RULE = "\u2500" * 36
 
 
 def print_scan_report(report: AnalysisReport, *, verbose: bool = False) -> None:
-    """Print the default concise scan report or detailed diagnostics."""
-    print("\U0001f34e Flutter iOS Readiness Report")
+    """Print the Phase 4 extraction report."""
+    project = report.project
+    print("\U0001f34e Flutter iOS Readiness Analyzer")
     print(HEAVY_RULE)
-    print(f"Project: {report.project.project_name or 'Not specified'}")
-    print(f"Version: {report.project.version or 'Not specified'}")
     print()
-    print(f"Status: {report.status.value}")
-    print(f"Readiness Score: {report.score}/100")
+    print("Project")
+    print(LIGHT_RULE)
+    print(f"Name           : {_display(project.project_name)}")
+    print(f"Version        : {_display(project.version)}")
+    print(f"SDK Constraint : {_display(project.sdk_constraint)}")
     print()
-    _print_checks(report)
+    print("iOS Configuration")
+    print(LIGHT_RULE)
+    print(f"Deployment Target : {_display(project.ios_deployment_target)}")
+    print(f"Display Name      : {_display(project.display_name)}")
+    print(f"Bundle Identifier : {_display(project.bundle_identifier)}")
     print()
-    _print_plugin_summary(report)
+    print("Project Files")
+    print(LIGHT_RULE)
+    print(f"{_file_icon(project.ios_folder_exists)} iOS Folder")
+    print(f"{_file_icon(project.plist_exists)} Info.plist")
+    print(f"{_file_icon(project.podfile_exists)} Podfile")
     print()
-    _print_critical_issues(report.findings)
+    print("Configuration Summary")
+    print(LIGHT_RULE)
+    print(f"Permissions : {len(project.permissions)}")
+    print(f"URL Schemes : {len(project.url_schemes)}")
+    print(f"ATS         : {'Present' if project.ats_settings is not None else 'Not present'}")
     print()
-    _print_recommendations(report.findings)
-    print(f"Result: {_result_text(report.status)}")
     if verbose:
-        print()
-        _print_verbose_details(report)
+        _print_verbose_configuration(report)
     else:
-        print("Tip: Run 'python main.py plugins <project_path>' for details.")
+        print("Analysis Complete")
+        print()
+        print("Tip: Run 'flutter-ios-check scan --verbose' for full details.")
 
 
 def print_plugin_report(
@@ -75,119 +87,49 @@ def print_plugin_report(
         print("No plugins match this filter.")
 
 
-def _print_checks(report: AnalysisReport) -> None:
-    print("Checks")
+def _print_verbose_configuration(report: AnalysisReport) -> None:
+    project = report.project
+    print("Permissions")
     print(LIGHT_RULE)
-    checks = (
-        (report.project.ios_folder_exists, "iOS Folder"),
-        (report.project.plist_exists, "Info.plist"),
-        (report.project.podfile_exists, "Podfile"),
-    )
-    for passed, label in checks:
-        print(f"{'\u2705' if passed else '\u274c'} {label}")
+    if project.permissions:
+        for permission in project.permissions:
+            print(f"\u2713 {permission}")
+    else:
+        print("None")
 
-
-def _print_plugin_summary(report: AnalysisReport) -> None:
-    print("Plugin Support")
+    print()
+    print("URL Schemes")
     print(LIGHT_RULE)
-    print(f"Known Compatible: {report.plugin_count(PluginStatus.COMPATIBLE)}")
-    warning_count = report.plugin_count(PluginStatus.WARNING)
-    critical_count = report.plugin_count(PluginStatus.CRITICAL)
-    if warning_count:
-        print(f"Known Warning: {warning_count}")
-    if critical_count:
-        print(f"Known Critical: {critical_count}")
-    print(f"Unknown: {report.plugin_count(PluginStatus.UNKNOWN)}")
+    if project.url_schemes:
+        for scheme in project.url_schemes:
+            print(scheme)
+    else:
+        print("None")
 
-
-def _print_critical_issues(findings: Iterable[Finding]) -> None:
-    print("Critical Issues")
+    print()
+    print("ATS Configuration")
     print(LIGHT_RULE)
-    issues = [
-        finding
-        for finding in findings
-        if finding.severity in {Severity.ERROR, Severity.CRITICAL}
-    ]
-    if not issues:
-        print("\u2705 None")
-        return
-    for finding in issues:
-        icon = "\U0001f6a8" if finding.severity is Severity.CRITICAL else "\u274c"
-        print(f"{icon} {finding.title}")
+    if project.ats_settings:
+        for key, value in sorted(project.ats_settings.items()):
+            print(f"{key}: {_format_ats_value(value)}")
+    else:
+        print("Not present")
+
+    print()
+    print("Analysis Complete")
 
 
-def _print_recommendations(findings: Iterable[Finding]) -> None:
-    print("Recommended Actions")
-    print(LIGHT_RULE)
-    actions = _unique_recommendations(findings)
-    if not actions:
-        print("1. No critical action required")
-        return
-    for index, action in enumerate(actions[:3], start=1):
-        print(f"{index}. {action}")
-    if len(actions) < 3:
-        print(f"{len(actions) + 1}. Re-scan project")
+def _display(value: object) -> str:
+    if value is None or value == "":
+        return "Not specified"
+    return str(value)
 
 
-def _print_verbose_details(report: AnalysisReport) -> None:
-    print("Detailed Plugin Analysis")
-    print(LIGHT_RULE)
-    if not report.plugins:
-        print("No dependencies detected.")
-    for plugin in report.plugins:
-        print(
-            f"{_plugin_icon(plugin)} {plugin.name} | "
-            f"{plugin.category} | {plugin.status.value.title()}"
-        )
-        if plugin.note:
-            print(f"  {plugin.note}")
-
-    diagnostic_findings = [
-        finding
-        for finding in report.findings
-        if finding.severity in {Severity.WARNING, Severity.ERROR, Severity.CRITICAL}
-    ]
-    if diagnostic_findings:
-        print()
-        print("Diagnostics")
-        print(LIGHT_RULE)
-        for finding in diagnostic_findings:
-            print(f"{_finding_icon(finding)} {finding.title}: {finding.message}")
+def _file_icon(exists: bool) -> str:
+    return "\u2705" if exists else "\u274c"
 
 
-def _unique_recommendations(findings: Iterable[Finding]) -> list[str]:
-    return list(
-        dict.fromkeys(
-            finding.recommendation
-            for finding in findings
-            if finding.recommendation
-            and finding.severity in {Severity.WARNING, Severity.ERROR, Severity.CRITICAL}
-        )
-    )
-
-
-def _result_text(status: ReadinessStatus) -> str:
-    if status is ReadinessStatus.READY:
-        return "READY FOR iOS BUILD"
-    if status is ReadinessStatus.NEEDS_ATTENTION:
-        return "NEEDS ATTENTION BEFORE iOS BUILD"
-    return "NOT READY FOR iOS BUILD"
-
-
-def _plugin_icon(plugin: PluginInfo) -> str:
-    return {
-        PluginStatus.COMPATIBLE: "\u2705",
-        PluginStatus.WARNING: "\u26a0",
-        PluginStatus.CRITICAL: "\U0001f6a8",
-        PluginStatus.UNKNOWN: "\u2022",
-    }[plugin.status]
-
-
-def _finding_icon(finding: Finding) -> str:
-    return {
-        Severity.PASS: "\u2705",
-        Severity.INFO: "\u2139",
-        Severity.WARNING: "\u26a0",
-        Severity.ERROR: "\u274c",
-        Severity.CRITICAL: "\U0001f6a8",
-    }[finding.severity]
+def _format_ats_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)

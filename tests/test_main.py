@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import plistlib
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -32,8 +33,25 @@ class MainTests(unittest.TestCase):
         )
         if complete_ios:
             (root / "ios" / "Runner").mkdir(parents=True)
-            (root / "ios" / "Podfile").touch()
-            (root / "ios" / "Runner" / "Info.plist").touch()
+            (root / "ios" / "Podfile").write_text(
+                "platform :ios, '14.0'\n", encoding="utf-8"
+            )
+            with (root / "ios" / "Runner" / "Info.plist").open("wb") as plist_file:
+                plistlib.dump(
+                    {
+                        "CFBundleDisplayName": "Example App",
+                        "CFBundleIdentifier": "com.example.app",
+                        "NSCameraUsageDescription": "Camera access",
+                        "NSMicrophoneUsageDescription": "Mic access",
+                        "CFBundleURLTypes": [
+                            {"CFBundleURLSchemes": ["exampleapp"]}
+                        ],
+                        "NSAppTransportSecurity": {
+                            "NSAllowsArbitraryLoads": False
+                        },
+                    },
+                    plist_file,
+                )
 
     def test_default_scan_is_concise_and_does_not_list_plugins(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -44,22 +62,25 @@ class MainTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             for expected in (
-                "\U0001f34e Flutter iOS Readiness Report",
-                "Project: example_app",
-                "Version: 1.0.0+1",
-                "Status: READY",
-                "Readiness Score: 93/100",
+                "\U0001f34e Flutter iOS Readiness Analyzer",
+                "Name           : example_app",
+                "Version        : 1.0.0+1",
+                "SDK Constraint : >=3.0.0 <4.0.0",
+                "Deployment Target : 14.0",
+                "Display Name      : Example App",
+                "Bundle Identifier : com.example.app",
                 "\u2705 iOS Folder",
                 "\u2705 Info.plist",
                 "\u2705 Podfile",
-                "Known Compatible: 1",
-                "Known Warning: 1",
-                "Unknown: 1",
-                "Result: READY FOR iOS BUILD",
+                "Permissions : 2",
+                "URL Schemes : 1",
+                "ATS         : Present",
+                "Analysis Complete",
             ):
                 self.assertIn(expected, output)
             self.assertNotIn("firebase_core\n", output)
-            self.assertNotIn("Plugin Detected", output)
+            self.assertNotIn("Readiness Score", output)
+            self.assertNotIn("Recommended Actions", output)
             self.assertLessEqual(len(output.splitlines()), 30)
 
     def test_legacy_path_argument_still_runs_scan(self) -> None:
@@ -70,9 +91,9 @@ class MainTests(unittest.TestCase):
             exit_code, output = self.run_cli([str(project_path)])
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("Flutter iOS Readiness Report", output)
+            self.assertIn("Flutter iOS Readiness Analyzer", output)
 
-    def test_missing_files_show_critical_issues_and_recommendations(self) -> None:
+    def test_missing_files_show_file_status_without_validation_results(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory)
             self.create_project(project_path, complete_ios=False)
@@ -80,12 +101,13 @@ class MainTests(unittest.TestCase):
             exit_code, output = self.run_cli(["scan", str(project_path)])
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("Status: NOT READY", output)
-            self.assertIn("\U0001f6a8 Missing iOS Folder", output)
-            self.assertIn("\u274c Missing Info.plist", output)
-            self.assertIn("\u274c Missing Podfile", output)
-            self.assertIn("flutter create .", output)
-            self.assertIn("Result: NOT READY FOR iOS BUILD", output)
+            self.assertIn("\u274c iOS Folder", output)
+            self.assertIn("\u274c Info.plist", output)
+            self.assertIn("\u274c Podfile", output)
+            self.assertIn("Deployment Target : Not specified", output)
+            self.assertIn("ATS         : Not present", output)
+            self.assertNotIn("Status:", output)
+            self.assertNotIn("flutter create .", output)
 
     def test_plugins_command_groups_plugins_without_duplicates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -121,7 +143,7 @@ class MainTests(unittest.TestCase):
             self.assertIn("custom_package", unknown_output)
             self.assertNotIn("firebase_core", unknown_output)
 
-    def test_verbose_scan_displays_plugin_metadata_and_diagnostics(self) -> None:
+    def test_verbose_scan_displays_extracted_configuration_details(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory)
             self.create_project(project_path)
@@ -131,10 +153,14 @@ class MainTests(unittest.TestCase):
             )
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("Detailed Plugin Analysis", output)
-            self.assertIn("firebase_core | Firebase | Compatible", output)
-            self.assertIn("camera | Permission | Warning", output)
-            self.assertIn("Diagnostics", output)
+            self.assertIn("Permissions", output)
+            self.assertIn("\u2713 NSCameraUsageDescription", output)
+            self.assertIn("\u2713 NSMicrophoneUsageDescription", output)
+            self.assertIn("URL Schemes", output)
+            self.assertIn("exampleapp", output)
+            self.assertIn("ATS Configuration", output)
+            self.assertIn("NSAllowsArbitraryLoads: false", output)
+            self.assertNotIn("Detailed Plugin Analysis", output)
 
     def test_validation_errors_preserve_nonzero_exit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
