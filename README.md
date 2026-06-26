@@ -267,4 +267,8 @@ Contributions are welcome, especially around:
 - adding tests for real Flutter iOS project layouts;
 - improving documentation and CLI examples.
 
+HEAD
 If you want to add validation logic, open an issue first so the scope stays aligned with the project phases.
+
+If you want to add validation logic, open an issue first so the scope stays aligned with the project phases.
+
