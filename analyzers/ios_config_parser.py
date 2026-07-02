@@ -92,7 +92,7 @@ def _extract_permission_keys(plist_data: dict[str, Any]) -> list[str]:
 
 
 def _extract_url_schemes(plist_data: dict[str, Any]) -> list[str]:
-    """Extract every URL scheme from CFBundleURLTypes."""
+    """Extract every URL scheme from CFBundleURLTypes in source order."""
     url_types = plist_data.get("CFBundleURLTypes")
     if not isinstance(url_types, list):
         return []
@@ -105,7 +105,7 @@ def _extract_url_schemes(plist_data: dict[str, Any]) -> list[str]:
         if not isinstance(bundle_schemes, list):
             continue
         schemes.extend(str(scheme) for scheme in bundle_schemes if scheme is not None)
-    return sorted(dict.fromkeys(schemes))
+    return schemes
 
 
 def _extract_ats_settings(plist_data: dict[str, Any]) -> dict[str, Any] | None:

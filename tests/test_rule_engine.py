@@ -33,7 +33,15 @@ class RuleEngineTests(unittest.TestCase):
 
         self.assertEqual(report.score, 100)
         self.assertEqual(report.status, ReadinessStatus.READY)
-        self.assertTrue(all(f.severity is Severity.PASS for f in report.findings))
+        severities_by_title = {
+            finding.title: finding.severity for finding in report.findings
+        }
+        self.assertEqual(severities_by_title["Deployment Target"], Severity.PASS)
+        self.assertEqual(severities_by_title["Bundle Identifier"], Severity.PASS)
+        self.assertEqual(severities_by_title["Display Name"], Severity.PASS)
+        self.assertEqual(severities_by_title["ATS Configuration"], Severity.PASS)
+        self.assertEqual(severities_by_title["URL Schemes"], Severity.PASS)
+        self.assertEqual(severities_by_title["Permissions Found"], Severity.INFO)
 
     def test_missing_files_generate_actionable_findings_and_low_score(self) -> None:
         report = build_analysis_report(self.make_project_info())
@@ -45,6 +53,8 @@ class RuleEngineTests(unittest.TestCase):
         self.assertIn("flutter create .", report.findings[0].recommendation)
         self.assertEqual(report.findings[1].severity, Severity.ERROR)
         self.assertEqual(report.findings[2].severity, Severity.ERROR)
+        self.assertIn("Deployment Target", [finding.title for finding in report.findings])
+        self.assertIn("Bundle Identifier", [finding.title for finding in report.findings])
 
     def test_plugins_are_classified_without_duplicate_findings(self) -> None:
         project = self.make_project_info(
@@ -66,10 +76,48 @@ class RuleEngineTests(unittest.TestCase):
         )
         self.assertEqual(
             [finding.title for finding in report.findings],
-            ["iOS Folder", "Info.plist", "Podfile", "Plugin warning: camera"],
+            [
+                "iOS Folder",
+                "Info.plist",
+                "Podfile",
+                "Deployment Target",
+                "Bundle Identifier",
+                "Display Name",
+                "ATS Configuration",
+                "URL Schemes",
+                "Permissions Found",
+                "Plugin warning: camera",
+            ],
         )
         self.assertEqual(report.score, 93)
         self.assertEqual(report.status, ReadinessStatus.READY)
+
+    def test_ios_configuration_validation_findings_are_generated(self) -> None:
+        project = self.make_project_info(
+            ios_folder_exists=True,
+            podfile_exists=True,
+            plist_exists=True,
+            ios_deployment_target="11.0",
+            bundle_identifier="bad",
+            display_name="",
+            ats_settings={"NSAllowsArbitraryLoads": True},
+            url_schemes=["app", "app", ""],
+            permissions=["NSCameraUsageDescription", "NSMicrophoneUsageDescription"],
+        )
+
+        report = build_analysis_report(project)
+        findings_by_title = {
+            finding.title: finding for finding in report.findings
+        }
+
+        self.assertEqual(findings_by_title["Deployment Target"].severity, Severity.WARNING)
+        self.assertEqual(findings_by_title["Bundle Identifier"].severity, Severity.ERROR)
+        self.assertEqual(findings_by_title["Display Name"].severity, Severity.WARNING)
+        self.assertEqual(findings_by_title["ATS Configuration"].severity, Severity.WARNING)
+        self.assertEqual(findings_by_title["URL Schemes"].severity, Severity.WARNING)
+        self.assertEqual(findings_by_title["Permissions Found"].severity, Severity.INFO)
+        self.assertIn("iOS 13.0", findings_by_title["Deployment Target"].recommendation)
+        self.assertIn("reverse-domain", findings_by_title["Bundle Identifier"].recommendation)
 
     def test_score_is_bounded_and_status_thresholds_are_correct(self) -> None:
         unknown_plugins = [
@@ -127,7 +175,25 @@ class RuleEngineTests(unittest.TestCase):
         ios_folder_exists: bool = False,
         podfile_exists: bool = False,
         plist_exists: bool = False,
+        ios_deployment_target: str | None = None,
+        bundle_identifier: str | None = None,
+        display_name: str | None = None,
+        ats_settings: dict[str, object] | None = None,
+        url_schemes: list[str] | None = None,
+        permissions: list[str] | None = None,
     ) -> ProjectInfo:
+        effective_deployment_target = ios_deployment_target
+        if effective_deployment_target is None and podfile_exists:
+            effective_deployment_target = "13.0"
+
+        effective_bundle_identifier = bundle_identifier
+        if effective_bundle_identifier is None and plist_exists:
+            effective_bundle_identifier = "com.example.app"
+
+        effective_display_name = display_name
+        if effective_display_name is None and plist_exists:
+            effective_display_name = "Example App"
+
         return ProjectInfo(
             project_name="example_app",
             version="1.0.0",
@@ -136,6 +202,14 @@ class RuleEngineTests(unittest.TestCase):
             ios_folder_exists=ios_folder_exists,
             podfile_exists=podfile_exists,
             plist_exists=plist_exists,
+            ios_deployment_target=effective_deployment_target,
+            bundle_identifier=effective_bundle_identifier,
+            display_name=effective_display_name,
+            ats_settings=ats_settings,
+            url_schemes=url_schemes or (["exampleapp"] if plist_exists else []),
+            permissions=permissions or (
+                ["NSCameraUsageDescription"] if plist_exists else []
+            ),
         )
 
 

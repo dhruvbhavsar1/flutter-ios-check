@@ -67,7 +67,7 @@ class ProjectScannerTests(unittest.TestCase):
                 project_info.permissions,
                 ["NSCameraUsageDescription", "NSPhotoLibraryUsageDescription"],
             )
-            self.assertEqual(project_info.url_schemes, ["oauth", "sample"])
+            self.assertEqual(project_info.url_schemes, ["sample", "oauth"])
             self.assertEqual(
                 project_info.ats_settings,
                 {

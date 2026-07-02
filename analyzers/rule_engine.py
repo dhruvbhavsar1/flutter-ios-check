@@ -6,6 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from analyzers.validators import (
+    summarize_permissions,
+    validate_ats_configuration,
+    validate_bundle_identifier,
+    validate_deployment_target,
+    validate_display_name,
+    validate_url_schemes,
+)
 from models.analysis_report import AnalysisReport, ReadinessStatus
 from models.finding import Finding, Severity
 from models.plugin_info import PluginInfo, PluginRule, PluginStatus
@@ -41,7 +49,7 @@ def analyze_project(
     project_info: ProjectInfo,
     plugins: list[PluginInfo] | None = None,
 ) -> list[Finding]:
-    """Generate concise structural and plugin-risk findings."""
+    """Generate structural, iOS configuration, and plugin-risk findings."""
     if plugins is None:
         plugins = classify_plugins(project_info.dependencies)
 
@@ -77,6 +85,8 @@ def analyze_project(
         ),
     ]
 
+    findings.extend(_validate_ios_configuration(project_info))
+
     for plugin in plugins:
         if plugin.status is PluginStatus.WARNING:
             findings.append(
@@ -98,6 +108,18 @@ def analyze_project(
             )
 
     return findings
+
+
+def _validate_ios_configuration(project_info: ProjectInfo) -> list[Finding]:
+    """iOS configuration validators."""
+    return [
+        validate_deployment_target(project_info.ios_deployment_target),
+        validate_bundle_identifier(project_info.bundle_identifier),
+        validate_display_name(project_info.display_name),
+        validate_ats_configuration(project_info.ats_settings),
+        validate_url_schemes(project_info.url_schemes),
+        summarize_permissions(project_info.permissions),
+    ]
 
 
 def classify_plugins(

@@ -72,16 +72,21 @@ class MainTests(unittest.TestCase):
                 "\u2705 iOS Folder",
                 "\u2705 Info.plist",
                 "\u2705 Podfile",
-                "Permissions : 2",
-                "URL Schemes : 1",
-                "ATS         : Present",
+                "Validation Summary",
+                "\u2713 Deployment Target",
+                "\u2713 Bundle Identifier",
+                "\u2713 Display Name",
+                "\u2713 ATS Configuration",
+                "\u2713 URL Schemes",
+                "\u2139 Permissions Found: 2",
+                "\u2705 None",
                 "Analysis Complete",
             ):
                 self.assertIn(expected, output)
             self.assertNotIn("firebase_core\n", output)
             self.assertNotIn("Readiness Score", output)
             self.assertNotIn("Recommended Actions", output)
-            self.assertLessEqual(len(output.splitlines()), 30)
+            self.assertLessEqual(len(output.splitlines()), 40)
 
     def test_legacy_path_argument_still_runs_scan(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -105,7 +110,11 @@ class MainTests(unittest.TestCase):
             self.assertIn("\u274c Info.plist", output)
             self.assertIn("\u274c Podfile", output)
             self.assertIn("Deployment Target : Not specified", output)
-            self.assertIn("ATS         : Not present", output)
+            self.assertIn("\u26a0 Deployment Target", output)
+            self.assertIn("\u274c Bundle Identifier", output)
+            self.assertIn("\u26a0 Display Name", output)
+            self.assertIn("No iOS deployment target was found", output)
+            self.assertIn("No bundle identifier was found", output)
             self.assertNotIn("Status:", output)
             self.assertNotIn("flutter create .", output)
 
@@ -160,6 +169,8 @@ class MainTests(unittest.TestCase):
             self.assertIn("exampleapp", output)
             self.assertIn("ATS Configuration", output)
             self.assertIn("NSAllowsArbitraryLoads: false", output)
+            self.assertIn("Validation Details", output)
+            self.assertIn("Recommendation", output)
             self.assertNotIn("Detailed Plugin Analysis", output)
 
     def test_validation_errors_preserve_nonzero_exit(self) -> None:
