@@ -4,6 +4,21 @@ Flutter iOS Check is a local command-line tool for inspecting a Flutter project'
 
 The analyzer does not modify the target project, contact Firebase or Apple services, run Xcode, or make network requests.
 
+## Project Status
+
+🚧 **Status: Active Development**
+
+The core functionality of Flutter iOS Check is now implemented.
+
+The project is stable enough for community testing and feedback, while new validation rules, plugin support, and quality improvements will continue to be added.
+
+Current focus:
+
+- Improving validation coverage
+- Supporting more Flutter plugins
+- Reducing false positives
+- Enhancing CLI output and documentation
+
 ## Requirements
 
 - Python 3.11 or later
