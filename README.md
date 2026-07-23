@@ -1,4 +1,4 @@
-# 🍎 Flutter iOS Readiness Analyzer
+# 🍎 Flutter iOS Check
 
 A local command-line tool for inspecting a Flutter project's iOS readiness before opening Xcode or testing on a device. It reads project files, applies static validation rules, and reports actionable findings.
 
