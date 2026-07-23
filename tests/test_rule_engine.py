@@ -56,7 +56,7 @@ class RuleEngineTests(unittest.TestCase):
         self.assertIn("Deployment Target", [finding.title for finding in report.findings])
         self.assertIn("Bundle Identifier", [finding.title for finding in report.findings])
 
-    def test_plugins_are_classified_without_duplicate_findings(self) -> None:
+    def test_plugins_are_classified_and_permission_findings_are_added(self) -> None:
         project = self.make_project_info(
             dependencies=["firebase_core", "camera", "custom_package"],
             ios_folder_exists=True,
@@ -86,11 +86,178 @@ class RuleEngineTests(unittest.TestCase):
                 "ATS Configuration",
                 "URL Schemes",
                 "Permissions Found",
+                "Firebase detected",
+                "Missing GoogleService-Info.plist",
+                "Firebase initialization",
+                "firebase_core dependency",
+                "Plugin permission: camera",
                 "Plugin warning: camera",
             ],
         )
         self.assertEqual(report.score, 93)
         self.assertEqual(report.status, ReadinessStatus.READY)
+
+    def test_plugin_permissions_pass_when_all_required_keys_are_present(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["camera", "image_picker", "geolocator"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+                permissions=[
+                    "NSCameraUsageDescription",
+                    "NSMicrophoneUsageDescription",
+                    "NSPhotoLibraryUsageDescription",
+                    "NSLocationWhenInUseUsageDescription",
+                ],
+            )
+        )
+
+        self.assertFalse(
+            any(
+                finding.title.startswith("Plugin permission: ")
+                for finding in report.findings
+            )
+        )
+
+    def test_plugin_permissions_report_every_missing_key_for_multiple_plugins(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["camera", "image_picker", "custom_package"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+                permissions=["NSCameraUsageDescription"],
+            )
+        )
+
+        permission_findings = [
+            finding
+            for finding in report.findings
+            if finding.title.startswith("Plugin permission: ")
+        ]
+        self.assertEqual(len(permission_findings), 2)
+        self.assertTrue(
+            all(finding.severity is Severity.WARNING for finding in permission_findings)
+        )
+        self.assertEqual(
+            {finding.message for finding in permission_findings},
+            {
+                'Plugin "camera" requires NSMicrophoneUsageDescription but it was not found in Info.plist.',
+                'Plugin "image_picker" requires NSPhotoLibraryUsageDescription but it was not found in Info.plist.',
+            },
+        )
+
+    def test_unknown_plugins_do_not_create_permission_findings(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["custom_package"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+                permissions=[],
+            )
+        )
+
+        self.assertFalse(
+            any(
+                finding.title.startswith("Plugin permission: ")
+                for finding in report.findings
+            )
+        )
+
+    def test_plugin_permission_validation_skips_projects_without_info_plist(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(dependencies=["camera"])
+        )
+
+        self.assertFalse(
+            any(
+                finding.title.startswith("Plugin permission: ")
+                for finding in report.findings
+            )
+        )
+
+    def test_projects_without_firebase_do_not_get_firebase_findings(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["url_launcher"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+            )
+        )
+
+        self.assertFalse(
+            any("Firebase" in finding.title for finding in report.findings)
+        )
+
+    def test_firebase_project_with_static_configuration_passes_core_checks(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["firebase_core", "firebase_auth"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+                google_service_info_exists=True,
+                firebase_initialization_detected=True,
+            )
+        )
+        findings = {finding.title: finding for finding in report.findings}
+
+        self.assertEqual(findings["GoogleService-Info.plist"].severity, Severity.PASS)
+        self.assertEqual(findings["Firebase initialization"].severity, Severity.PASS)
+        self.assertEqual(findings["firebase_core dependency"].severity, Severity.PASS)
+
+    def test_firebase_missing_configuration_produces_actionable_findings(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["firebase_auth"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+            )
+        )
+        findings = {finding.title: finding for finding in report.findings}
+
+        self.assertEqual(
+            findings["Missing GoogleService-Info.plist"].severity, Severity.ERROR
+        )
+        self.assertEqual(findings["Firebase initialization"].severity, Severity.WARNING)
+        self.assertEqual(findings["Missing firebase_core"].severity, Severity.ERROR)
+
+    def test_firebase_project_without_ios_files_is_handled_gracefully(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(dependencies=["firebase_core"])
+        )
+        findings = {finding.title: finding for finding in report.findings}
+
+        self.assertEqual(
+            findings["Missing GoogleService-Info.plist"].severity, Severity.ERROR
+        )
+        self.assertEqual(findings["Firebase initialization"].severity, Severity.WARNING)
+
+    def test_firebase_messaging_reports_static_and_manual_checks(self) -> None:
+        report = build_analysis_report(
+            self.make_project_info(
+                dependencies=["firebase_core", "firebase_messaging"],
+                ios_folder_exists=True,
+                podfile_exists=True,
+                plist_exists=True,
+                google_service_info_exists=True,
+                firebase_initialization_detected=True,
+                background_modes=["remote-notification"],
+                push_notifications_capability_detected=False,
+            )
+        )
+        findings = {finding.title: finding for finding in report.findings}
+
+        self.assertEqual(
+            findings["Firebase messaging background mode"].severity, Severity.PASS
+        )
+        self.assertEqual(
+            findings["Push notification capability"].severity, Severity.INFO
+        )
 
     def test_ios_configuration_validation_findings_are_generated(self) -> None:
         project = self.make_project_info(
@@ -181,6 +348,10 @@ class RuleEngineTests(unittest.TestCase):
         ats_settings: dict[str, object] | None = None,
         url_schemes: list[str] | None = None,
         permissions: list[str] | None = None,
+        background_modes: list[str] | None = None,
+        google_service_info_exists: bool = False,
+        firebase_initialization_detected: bool = False,
+        push_notifications_capability_detected: bool = False,
     ) -> ProjectInfo:
         effective_deployment_target = ios_deployment_target
         if effective_deployment_target is None and podfile_exists:
@@ -207,9 +378,15 @@ class RuleEngineTests(unittest.TestCase):
             display_name=effective_display_name,
             ats_settings=ats_settings,
             url_schemes=url_schemes or (["exampleapp"] if plist_exists else []),
-            permissions=permissions or (
-                ["NSCameraUsageDescription"] if plist_exists else []
+            permissions=(
+                permissions
+                if permissions is not None
+                else (["NSCameraUsageDescription"] if plist_exists else [])
             ),
+            background_modes=background_modes or [],
+            google_service_info_exists=google_service_info_exists,
+            firebase_initialization_detected=firebase_initialization_detected,
+            push_notifications_capability_detected=push_notifications_capability_detected,
         )
 
 

@@ -29,6 +29,7 @@ def parse_ios_configuration(project_path: Path, project_info: ProjectInfo) -> Pr
     permissions: list[str] = []
     url_schemes: list[str] = []
     ats_settings: dict[str, Any] | None = None
+    background_modes: list[str] = []
 
     podfile_path = project_path / "ios" / "Podfile"
     if project_info.podfile_exists:
@@ -44,6 +45,7 @@ def parse_ios_configuration(project_path: Path, project_info: ProjectInfo) -> Pr
         permissions = _extract_permission_keys(plist_data)
         url_schemes = _extract_url_schemes(plist_data)
         ats_settings = _extract_ats_settings(plist_data)
+        background_modes = _extract_background_modes(plist_data)
 
     return replace(
         project_info,
@@ -53,6 +55,7 @@ def parse_ios_configuration(project_path: Path, project_info: ProjectInfo) -> Pr
         permissions=permissions,
         url_schemes=url_schemes,
         ats_settings=ats_settings,
+        background_modes=background_modes,
     )
 
 
@@ -113,6 +116,14 @@ def _extract_ats_settings(plist_data: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(ats_settings, dict):
         return None
     return dict(ats_settings)
+
+
+def _extract_background_modes(plist_data: dict[str, Any]) -> list[str]:
+    """Extract UIBackgroundModes entries from Info.plist."""
+    modes = plist_data.get("UIBackgroundModes")
+    if not isinstance(modes, list):
+        return []
+    return [str(mode) for mode in modes if mode is not None]
 
 
 def _optional_string(value: object) -> str | None:

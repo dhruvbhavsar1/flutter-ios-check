@@ -1,298 +1,177 @@
 # 🍎 Flutter iOS Readiness Analyzer
 
-**Inspect and validate the iOS configuration inside a Flutter project before Xcode surprises you.**
+A local command-line tool for inspecting a Flutter project's iOS readiness before opening Xcode or testing on a device. It reads project files, applies static validation rules, and reports actionable findings.
 
-Flutter iOS Readiness Analyzer is a Python CLI that reads a Flutter project, extracts important iOS configuration, and now performs basic iOS configuration validation. It is designed to help developers quickly understand what is present, what is missing, and what should be reviewed before testing on a real iPhone or Mac.
+The analyzer does not modify the target project, contact Firebase or Apple services, run Xcode, or make network requests.
 
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-active%20development-orange.svg)](#roadmap)
+## Requirements
 
----
+- Python 3.11 or later
+- A Flutter project containing a readable `pubspec.yaml`
 
-## Current status: Phase 5
+Install dependencies from this repository root:
 
-Phase 5 adds **iOS configuration validation** on top of the existing project scanner and iOS parser.
+```powershell
+python -m pip install -r requirements.txt
+```
 
-The tool now validates:
+## Quick start
 
-- iOS deployment target;
-- bundle identifier format;
-- display name presence;
-- App Transport Security configuration;
-- duplicate or empty URL schemes;
-- permission description count.
+Run the scanner from this repository root. The supported command is `python main.py`.
 
-This phase does **not** compare Flutter plugins with permissions. Plugin-to-permission validation belongs to a future phase.
+```powershell
+# Scan a Flutter project
+python main.py scan C:\flutter\App_for_charity\Charity_app
 
----
+# Include all extracted values and finding recommendations
+python main.py scan C:\flutter\App_for_charity\Charity_app --verbose
+```
 
-## What it can do today
+## Commands
 
-| Area | Capability |
+```powershell
+# Display available commands and options
+python main.py --help
+
+# Scan the current working directory
+python main.py scan
+
+# Scan a specified Flutter project
+python main.py scan C:\path\to\flutter_project
+
+# Detailed scan output
+python main.py scan C:\path\to\flutter_project --verbose
+
+# Path-only scan shorthand
+python main.py C:\path\to\flutter_project
+
+# List all detected dependency classifications
+python main.py plugins C:\path\to\flutter_project
+
+# List only known or only unknown dependency classifications
+python main.py plugins C:\path\to\flutter_project --known
+python main.py plugins C:\path\to\flutter_project --unknown
+```
+
+## What the scanner reads
+
+| Source | Extracted information |
 | --- | --- |
-| Project validation | Verify the folder exists and contains a readable `pubspec.yaml` |
-| Flutter metadata | Extract project name, version, Dart SDK constraint, and dependencies |
-| iOS structure | Detect `ios/`, `ios/Podfile`, and `ios/Runner/Info.plist` |
-| Podfile parsing | Extract the iOS deployment target |
-| Info.plist parsing | Extract display name, bundle identifier, permissions, URL schemes, and ATS settings |
-| iOS validation | Generate `PASS`, `INFO`, `WARNING`, and `ERROR` findings |
-| Reporting | Show a concise default report and detailed verbose findings |
-| Plugins | Keep informational plugin classification available through the `plugins` command |
-
----
-
-## What it does not do yet
-
-The analyzer currently does not:
-
-- validate permissions against Flutter plugins;
-- validate Firebase configuration;
-- validate plugin compatibility;
-- generate HTML reports;
-- run GitHub Actions workflows;
-- modify or fix project files automatically;
-- use AI or cloud services.
-
----
-
-## Installation
-
-Python 3.11 or newer is required.
-
-From the project root:
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e .
-```
-
-This installs the `flutter-ios-check` command locally.
-
-You can also run the project directly without installing:
-
-```powershell
-python main.py scan C:\Projects\MyFlutterApp
-```
-
----
-
-## Usage
-
-Scan the current Flutter project:
-
-```powershell
-flutter-ios-check scan
-```
-
-Scan a specific Flutter project:
-
-```powershell
-flutter-ios-check scan C:\Projects\MyFlutterApp
-```
-
-Show all extracted configuration values and complete finding details:
-
-```powershell
-flutter-ios-check scan C:\Projects\MyFlutterApp --verbose
-```
-
-Show plugin classifications:
-
-```powershell
-flutter-ios-check plugins C:\Projects\MyFlutterApp
-```
-
-Show only known or unknown plugins:
-
-```powershell
-flutter-ios-check plugins C:\Projects\MyFlutterApp --known
-flutter-ios-check plugins C:\Projects\MyFlutterApp --unknown
-```
-
-Legacy path-only usage is still supported:
-
-```powershell
-python main.py C:\Projects\MyFlutterApp
-```
-
----
-
-## Example default report
-
-```text
-🍎 Flutter iOS Readiness Analyzer
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Project
-────────────────────────────────────
-Name           : my_app
-Version        : 1.0.0+1
-SDK Constraint : >=3.0.0 <4.0.0
-
-iOS Configuration
-────────────────────────────────────
-Deployment Target : 13.0
-Display Name      : My App
-Bundle Identifier : com.example.myapp
-
-Project Files
-────────────────────────────────────
-✅ iOS Folder
-✅ Info.plist
-✅ Podfile
-
-Validation Summary
-────────────────────────────────────
-✓ Deployment Target
-✓ Bundle Identifier
-✓ Display Name
-⚠ ATS Configuration
-✓ URL Schemes
-ℹ Permissions Found: 4
-
-Warnings
-────────────────────────────────────
-⚠ ATS allows arbitrary network loads. This may reduce application security.
-
-Analysis Complete
-```
-
----
-
-## Example verbose report
-
-Verbose mode includes extracted configuration details plus full findings and recommendations.
-
-```text
-Permissions
-────────────────────────────────────
-✓ NSCameraUsageDescription
-✓ NSPhotoLibraryUsageDescription
-
-URL Schemes
-────────────────────────────────────
-myapp
-google123456
-
-ATS Configuration
-────────────────────────────────────
-NSAllowsArbitraryLoads: true
-
-Validation Details
-────────────────────────────────────
-⚠ ATS Configuration
-  Severity       : WARNING
-  Message        : ATS allows arbitrary network loads. This may reduce application security.
-  Recommendation : Avoid NSAllowsArbitraryLoads=true unless the app has a specific need.
-```
-
----
+| `pubspec.yaml` | Project name, version, Dart SDK constraint, and dependency names |
+| `ios/Podfile` | iOS deployment target |
+| `ios/Runner/Info.plist` | Display name, bundle identifier, permission usage-description keys, URL schemes, ATS settings, and background modes |
+| `ios/Runner/GoogleService-Info.plist` | Firebase iOS configuration file presence |
+| `lib/**/*.dart` | Static occurrence of `Firebase.initializeApp()` |
+| Runner entitlements / Xcode project | Local Push Notifications capability markers, if present |
 
 ## Validation rules
 
-Phase 5 validates only iOS configuration values that were already extracted in Phase 4.
+### Project structure
 
-| Rule | Result |
+The analyzer reports the presence of `ios/`, `ios/Podfile`, and `ios/Runner/Info.plist`.
+
+| Condition | Finding severity |
 | --- | --- |
-| Missing deployment target | `WARNING` |
-| Deployment target below iOS 13.0 | `WARNING` |
-| Deployment target 13.0 or higher | `PASS` |
-| Missing or empty bundle identifier | `ERROR` |
-| Basic reverse-domain bundle identifier | `PASS` |
-| Missing or empty display name | `WARNING` |
-| Present display name | `PASS` |
-| `NSAllowsArbitraryLoads=true` | `WARNING` |
-| ATS missing or restrictive | `PASS` |
-| Duplicate URL schemes | `WARNING` |
-| Empty URL scheme values | `WARNING` |
-| Permission descriptions found | `INFO` |
+| Missing iOS folder | `CRITICAL` |
+| Missing Info.plist | `ERROR` |
+| Missing Podfile | `ERROR` |
 
----
+### iOS configuration
 
-## Project architecture
+| Check | Expected result |
+| --- | --- |
+| Podfile deployment target | iOS 13.0 or later is recommended |
+| Bundle identifier | Basic reverse-domain value, such as `com.example.app` |
+| Display name | `CFBundleDisplayName` or `CFBundleName` is present |
+| App Transport Security | `NSAllowsArbitraryLoads` is not `true` |
+| URL schemes | No empty or duplicate values |
+| Permission descriptions | Reports the number of detected `NS*UsageDescription` keys |
+
+### Plugin classification
+
+The `plugins` command classifies dependencies using [rules/plugins.json](rules/plugins.json) as compatible, warning, critical, or unknown. Unknown packages are reported but do not cause the scanner to fail.
+
+Current known plugin entries include:
+
+`camera`, `image_picker`, `geolocator`, `permission_handler`, `firebase_core`, `firebase_messaging`, `flutter_local_notifications`, and `url_launcher`.
+
+### Plugin permission validation
+
+When `Info.plist` is available, the scanner compares mapped plugin requirements with detected usage-description keys. Missing keys produce `WARNING` findings.
+
+| Plugin | Required Info.plist keys |
+| --- | --- |
+| `camera` | `NSCameraUsageDescription`, `NSMicrophoneUsageDescription` |
+| `image_picker` | `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription` |
+| `geolocator` | `NSLocationWhenInUseUsageDescription` |
+
+The mapping is data-driven. Add a `required_permissions` list to an entry in `rules/plugins.json` to extend it without changing validation logic.
+
+### Firebase validation
+
+Firebase validation starts only when one or more Firebase packages are detected. Supported Firebase package detection includes:
+
+`firebase_core`, `firebase_auth`, `cloud_firestore`, `firebase_messaging`, `firebase_storage`, `firebase_crashlytics`, `firebase_analytics`, `firebase_remote_config`, and `firebase_app_check`.
+
+| Check | Success | Finding when missing or unresolved |
+| --- | --- | --- |
+| Firebase configuration file | `ios/Runner/GoogleService-Info.plist` exists | `ERROR` |
+| Firebase initialization | `Firebase.initializeApp()` appears in `lib/**/*.dart` | `WARNING` |
+| Dependency consistency | `firebase_core` is present with other Firebase plugins | `ERROR` |
+| Messaging background mode | `remote-notification` found in `UIBackgroundModes` | `INFO` manual verification guidance |
+| Push capability | Local entitlements/Xcode marker found | `INFO` manual verification guidance |
+
+For `firebase_messaging`, absence of a local capability marker is not reported as a build failure: static files cannot reliably prove every Xcode signing and Apple Developer setting. Confirm Push Notifications and Remote notifications for the Runner target in Xcode when your app uses background notifications.
+
+## Reporting
+
+`scan` produces a concise report with project details, iOS file status, validation summary, and actionable warnings. `--verbose` additionally prints extracted permissions, URL schemes, ATS values, and all findings with recommendations.
+
+Findings use these severities:
+
+| Severity | Meaning |
+| --- | --- |
+| `PASS` | The static rule is satisfied |
+| `INFO` | Context or a manual verification recommendation |
+| `WARNING` | A likely configuration issue or incomplete static evidence |
+| `ERROR` | A required configuration file or setting is missing |
+| `CRITICAL` | Required iOS project structure is missing |
+
+## Scope and limitations
+
+The tool intentionally does not:
+
+- Validate Android permissions;
+- Call Firebase APIs or verify cloud services;
+- Verify Firestore, Authentication, Storage, Analytics, Remote Config, or App Check at runtime;
+- Check APNs certificates, Apple Developer portal configuration, provisioning profiles, or notification delivery;
+- Run Flutter, CocoaPods, or Xcode builds;
+- Modify project files automatically.
+
+## Architecture
 
 ```text
-flutter-ios-checker/
-├── main.py
-├── pyproject.toml
-├── requirements.txt
-├── README.md
-├── analyzers/
-│   ├── project_validator.py
-│   ├── project_scanner.py
-│   ├── ios_config_parser.py
-│   ├── rule_engine.py
-│   └── validators/
-│       ├── deployment_target_validator.py
-│       ├── bundle_identifier_validator.py
-│       ├── display_name_validator.py
-│       ├── ats_validator.py
-│       ├── url_scheme_validator.py
-│       └── permission_summary_validator.py
-├── models/
-│   ├── project_info.py
-│   ├── finding.py
-│   ├── plugin_info.py
-│   └── analysis_report.py
-├── reporters/
-│   └── console.py
-├── rules/
-│   └── plugins.json
-└── tests/
+analyzers/
+  project_validator.py       # Flutter project validation
+  project_scanner.py         # pubspec and project file discovery
+  ios_config_parser.py       # Podfile and Info.plist extraction
+  firebase_config_parser.py  # local Firebase source and capability discovery
+  rule_engine.py             # combines all findings
+  validators/                # focused iOS, plugin, and Firebase rules
+models/                       # project, plugin, finding, and report data models
+reporters/console.py          # CLI output
+rules/plugins.json            # plugin classification and permission mapping
+tests/                        # unit tests
 ```
 
-The architecture keeps responsibilities separated:
-
-- `project_validator.py` handles Phase 1 project validation.
-- `project_scanner.py` reads `pubspec.yaml` and builds the core project model.
-- `ios_config_parser.py` extracts iOS-specific configuration.
-- `validators/` contains one focused validator per iOS configuration rule.
-- `rule_engine.py` collects findings through the existing rule-engine flow.
-- `reporters/console.py` formats clean CLI output.
-- `models/` contains structured dataclasses used across the analyzer.
-
----
-
-## Run tests
+## Tests
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-Expected result:
-
-```text
-Ran 24 tests
-
-OK
-```
-
----
-
-## Roadmap
-
-Future phases may add:
-
-- plugin-to-permission validation;
-- Firebase iOS configuration checks;
-- plugin compatibility validation;
-- readiness scoring in the default report;
-- actionable fix workflows;
-- richer report formats.
-
-These are intentionally not part of Phase 5.
-
----
+The suite covers project detection, parsing, iOS configuration rules, plugin classifications, plugin permissions, Firebase checks, Firebase Messaging guidance, CLI output, and partial iOS projects.
 
 ## Contributing
 
-Contributions are welcome, especially around:
-
-- Podfile parsing edge cases;
-- `Info.plist` parsing edge cases;
-- additional iOS configuration validators;
-- tests using real Flutter iOS project layouts;
-- improvements to documentation and CLI examples.
-
-If you want to add plugin-specific validation, open an issue first so the scope stays aligned with the roadmap.
+Keep additions modular and static. New checks should reuse the existing scanner, rule engine, `Finding` model, and console reporter, with focused tests for both passing and failing cases.

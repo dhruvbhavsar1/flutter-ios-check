@@ -99,6 +99,30 @@ class ProjectScannerTests(unittest.TestCase):
             self.assertEqual(project_info.url_schemes, [])
             self.assertIsNone(project_info.ats_settings)
 
+    def test_scanner_detects_firebase_files_initialization_and_background_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            (project_path / "pubspec.yaml").write_text(
+                "name: firebase_app\ndependencies:\n  firebase_core: ^3.0.0\n",
+                encoding="utf-8",
+            )
+            runner_path = project_path / "ios" / "Runner"
+            runner_path.mkdir(parents=True)
+            (runner_path / "GoogleService-Info.plist").write_bytes(b"placeholder")
+            with (runner_path / "Info.plist").open("wb") as plist_file:
+                plistlib.dump({"UIBackgroundModes": ["remote-notification"]}, plist_file)
+            lib_path = project_path / "lib"
+            lib_path.mkdir()
+            (lib_path / "main.dart").write_text(
+                "await Firebase.initializeApp();", encoding="utf-8"
+            )
+
+            project_info = scan_project(project_path)
+
+            self.assertTrue(project_info.google_service_info_exists)
+            self.assertTrue(project_info.firebase_initialization_detected)
+            self.assertEqual(project_info.background_modes, ["remote-notification"])
+
     def test_invalid_yaml_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory)

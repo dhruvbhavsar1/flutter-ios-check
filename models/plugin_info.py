@@ -32,3 +32,4 @@ class PluginRule:
     category: str
     status: PluginStatus
     note: str = ""
+    required_permissions: tuple[str, ...] = ()

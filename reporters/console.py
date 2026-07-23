@@ -18,6 +18,12 @@ CONFIG_FINDING_TITLES = {
     "URL Schemes",
     "Permissions Found",
 }
+PLUGIN_PERMISSION_FINDING_PREFIX = "Plugin permission: "
+FIREBASE_FINDING_TITLES = {
+    "Missing GoogleService-Info.plist",
+    "Firebase initialization",
+    "Missing firebase_core",
+}
 
 
 def print_scan_report(report: AnalysisReport, *, verbose: bool = False) -> None:
@@ -55,7 +61,7 @@ def print_scan_report(report: AnalysisReport, *, verbose: bool = False) -> None:
     else:
         print("Analysis Complete")
         print()
-        print("Tip: Run 'flutter-ios-check scan --verbose' for full details.")
+        print("Tip: Run 'python main.py scan --verbose' for full details.")
 
 
 def print_plugin_report(
@@ -157,7 +163,11 @@ def _print_issues(findings: list[Finding]) -> None:
     issues = [
         finding
         for finding in findings
-        if finding.title in CONFIG_FINDING_TITLES
+        if (
+            finding.title in CONFIG_FINDING_TITLES
+            or finding.title.startswith(PLUGIN_PERMISSION_FINDING_PREFIX)
+            or finding.title in FIREBASE_FINDING_TITLES
+        )
         and finding.severity in {Severity.WARNING, Severity.ERROR, Severity.CRITICAL}
     ]
     if not issues:

@@ -33,6 +33,9 @@ class MainTests(unittest.TestCase):
         )
         if complete_ios:
             (root / "ios" / "Runner").mkdir(parents=True)
+            (root / "ios" / "Runner" / "GoogleService-Info.plist").write_bytes(
+                b"firebase configuration"
+            )
             (root / "ios" / "Podfile").write_text(
                 "platform :ios, '14.0'\n", encoding="utf-8"
             )
@@ -52,6 +55,10 @@ class MainTests(unittest.TestCase):
                     },
                     plist_file,
                 )
+            (root / "lib").mkdir()
+            (root / "lib" / "main.dart").write_text(
+                "await Firebase.initializeApp();", encoding="utf-8"
+            )
 
     def test_default_scan_is_concise_and_does_not_list_plugins(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -172,6 +179,29 @@ class MainTests(unittest.TestCase):
             self.assertIn("Validation Details", output)
             self.assertIn("Recommendation", output)
             self.assertNotIn("Detailed Plugin Analysis", output)
+
+    def test_scan_reports_missing_plugin_permission_in_existing_warnings_section(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory)
+            self.create_project(project_path)
+            plist_path = project_path / "ios" / "Runner" / "Info.plist"
+            with plist_path.open("wb") as plist_file:
+                plistlib.dump(
+                    {
+                        "CFBundleDisplayName": "Example App",
+                        "CFBundleIdentifier": "com.example.app",
+                        "NSCameraUsageDescription": "Camera access",
+                    },
+                    plist_file,
+                )
+
+            exit_code, output = self.run_cli(["scan", str(project_path)])
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn(
+                'Plugin "camera" requires NSMicrophoneUsageDescription but it was not found in Info.plist.',
+                output,
+            )
 
     def test_validation_errors_preserve_nonzero_exit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

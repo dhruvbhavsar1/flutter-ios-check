@@ -2,17 +2,26 @@
   "camera": {
     "category": "Permission",
     "status": "warning",
-    "note": "Requires camera and microphone usage descriptions when those features are used."
+    "note": "Requires camera and microphone usage descriptions when those features are used.",
+    "required_permissions": [
+      "NSCameraUsageDescription",
+      "NSMicrophoneUsageDescription"
+    ]
   },
   "image_picker": {
     "category": "Permission",
     "status": "compatible",
-    "note": "Supported on iOS; photo or camera access may require usage descriptions."
+    "note": "Supported on iOS; photo or camera access may require usage descriptions.",
+    "required_permissions": [
+      "NSCameraUsageDescription",
+      "NSPhotoLibraryUsageDescription"
+    ]
   },
   "geolocator": {
     "category": "Permission",
     "status": "compatible",
-    "note": "Supported on iOS; location features require usage descriptions."
+    "note": "Supported on iOS; location features require usage descriptions.",
+    "required_permissions": ["NSLocationWhenInUseUsageDescription"]
   },
   "permission_handler": {
     "category": "Permission",
@@ -27,7 +36,8 @@
   "firebase_messaging": {
     "category": "Firebase",
     "status": "compatible",
-    "note": "Supported on iOS; push notification setup is required."
+    "note": "Supported on iOS; push notification setup is required. iOS does not use an Info.plist usage-description key for notification authorization.",
+    "required_permissions": []
   },
   "flutter_local_notifications": {
     "category": "Notification",

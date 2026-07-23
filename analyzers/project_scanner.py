@@ -8,6 +8,10 @@ from typing import Any
 import yaml
 
 from analyzers.ios_config_parser import IOSConfigParseError, parse_ios_configuration
+from analyzers.firebase_config_parser import (
+    firebase_initialization_exists,
+    push_notifications_capability_exists,
+)
 from analyzers.project_validator import validate_flutter_project
 from models.project_info import ProjectInfo
 
@@ -31,6 +35,13 @@ def scan_project(project_path: Path) -> ProjectInfo:
         ios_folder_exists=ios_path.is_dir(),
         podfile_exists=(ios_path / "Podfile").is_file(),
         plist_exists=(ios_path / "Runner" / "Info.plist").is_file(),
+        google_service_info_exists=(
+            ios_path / "Runner" / "GoogleService-Info.plist"
+        ).is_file(),
+        firebase_initialization_detected=firebase_initialization_exists(project_path),
+        push_notifications_capability_detected=(
+            push_notifications_capability_exists(project_path)
+        ),
     )
     try:
         return parse_ios_configuration(project_path, project_info)

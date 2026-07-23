@@ -17,7 +17,7 @@ from reporters.console import print_plugin_report, print_scan_report
 def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser and supported subcommands."""
     parser = argparse.ArgumentParser(
-        prog="flutter-ios-check",
+        prog="python main.py",
         description="Analyze a Flutter project's iOS readiness.",
     )
     subparsers = parser.add_subparsers(dest="command")

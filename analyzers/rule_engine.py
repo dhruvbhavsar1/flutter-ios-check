@@ -8,6 +8,8 @@ from typing import Any
 
 from analyzers.validators import (
     summarize_permissions,
+    validate_firebase_configuration,
+    validate_plugin_permissions,
     validate_ats_configuration,
     validate_bundle_identifier,
     validate_deployment_target,
@@ -33,8 +35,9 @@ def build_analysis_report(
     plugin_rules_path: Path = DEFAULT_PLUGIN_RULES_PATH,
 ) -> AnalysisReport:
     """Apply all rules and return a complete readiness report."""
-    plugins = classify_plugins(project_info.dependencies, plugin_rules_path)
-    findings = analyze_project(project_info, plugins)
+    plugin_rules = load_plugin_rules(plugin_rules_path)
+    plugins = _classify_plugins(project_info.dependencies, plugin_rules)
+    findings = analyze_project(project_info, plugins, plugin_rules)
     score = calculate_readiness_score(project_info, plugins)
     return AnalysisReport(
         project=project_info,
@@ -48,10 +51,13 @@ def build_analysis_report(
 def analyze_project(
     project_info: ProjectInfo,
     plugins: list[PluginInfo] | None = None,
+    plugin_rules: dict[str, PluginRule] | None = None,
 ) -> list[Finding]:
     """Generate structural, iOS configuration, and plugin-risk findings."""
     if plugins is None:
         plugins = classify_plugins(project_info.dependencies)
+    if plugin_rules is None:
+        plugin_rules = load_plugin_rules()
 
     findings = [
         _file_finding(
@@ -86,6 +92,13 @@ def analyze_project(
     ]
 
     findings.extend(_validate_ios_configuration(project_info))
+    findings.extend(validate_firebase_configuration(project_info))
+    if project_info.plist_exists:
+        findings.extend(
+            validate_plugin_permissions(
+                project_info.dependencies, project_info.permissions, plugin_rules
+            )
+        )
 
     for plugin in plugins:
         if plugin.status is PluginStatus.WARNING:
@@ -128,6 +141,13 @@ def classify_plugins(
 ) -> list[PluginInfo]:
     """Classify dependencies using the plugin compatibility database."""
     rules = load_plugin_rules(plugin_rules_path)
+    return _classify_plugins(dependency_names, rules)
+
+
+def _classify_plugins(
+    dependency_names: list[str], rules: dict[str, PluginRule]
+) -> list[PluginInfo]:
+    """Classify dependencies using already-loaded plugin rules."""
     plugins: list[PluginInfo] = []
 
     for name in dependency_names:
@@ -205,6 +225,7 @@ def load_plugin_rules(
         category = metadata.get("category")
         status_value = metadata.get("status")
         note = metadata.get("note", "")
+        required_permissions = metadata.get("required_permissions", [])
         if not isinstance(category, str) or not category.strip():
             raise RuleEngineError(
                 f"Invalid plugin rules: missing category for {plugin_name}"
@@ -219,7 +240,19 @@ def load_plugin_rules(
             raise RuleEngineError(
                 f"Invalid plugin rules: invalid note for {plugin_name}"
             )
-        rules[plugin_name] = PluginRule(category, status, note)
+        if (
+            not isinstance(required_permissions, list)
+            or not all(
+                isinstance(permission, str) and permission.strip()
+                for permission in required_permissions
+            )
+        ):
+            raise RuleEngineError(
+                f"Invalid plugin rules: invalid required permissions for {plugin_name}"
+            )
+        rules[plugin_name] = PluginRule(
+            category, status, note, tuple(required_permissions)
+        )
 
     return rules
 

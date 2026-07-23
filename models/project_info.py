@@ -23,3 +23,7 @@ class ProjectInfo:
     permissions: list[str] = field(default_factory=list)
     url_schemes: list[str] = field(default_factory=list)
     ats_settings: dict[str, Any] | None = None
+    background_modes: list[str] = field(default_factory=list)
+    google_service_info_exists: bool = False
+    firebase_initialization_detected: bool = False
+    push_notifications_capability_detected: bool = False
