@@ -29,7 +29,7 @@ FIREBASE_FINDING_TITLES = {
 def print_scan_report(report: AnalysisReport, *, verbose: bool = False) -> None:
     """Print the Phase 4 extraction report."""
     project = report.project
-    print("\U0001f34e Flutter iOS Readiness Analyzer")
+    print("\U0001f34e Flutter iOS Check")
     print(HEAVY_RULE)
     print()
     print("Project")

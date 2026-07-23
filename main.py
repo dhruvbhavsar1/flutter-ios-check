@@ -1,4 +1,4 @@
-"""Command-line entry point for the Flutter iOS Readiness Analyzer."""
+"""Command-line entry point for Flutter iOS Check."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser and supported subcommands."""
     parser = argparse.ArgumentParser(
         prog="python main.py",
-        description="Analyze a Flutter project's iOS readiness.",
+        description="Check a Flutter project's iOS configuration.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    scan_parser = subparsers.add_parser("scan", help="Run the readiness scan.")
+    scan_parser = subparsers.add_parser("scan", help="Run the iOS configuration check.")
     scan_parser.add_argument(
         "flutter_project_path",
         nargs="?",

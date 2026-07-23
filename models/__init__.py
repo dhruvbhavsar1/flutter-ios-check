@@ -1,4 +1,4 @@
-"""Data models used by the Flutter iOS Readiness Analyzer."""
+"""Data models used by Flutter iOS Check."""
 
 from models.analysis_report import AnalysisReport, ReadinessStatus
 from models.finding import Finding, Severity

@@ -69,7 +69,7 @@ class MainTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             for expected in (
-                "\U0001f34e Flutter iOS Readiness Analyzer",
+                "\U0001f34e Flutter iOS Check",
                 "Name           : example_app",
                 "Version        : 1.0.0+1",
                 "SDK Constraint : >=3.0.0 <4.0.0",
@@ -103,7 +103,7 @@ class MainTests(unittest.TestCase):
             exit_code, output = self.run_cli([str(project_path)])
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("Flutter iOS Readiness Analyzer", output)
+            self.assertIn("Flutter iOS Check", output)
 
     def test_missing_files_show_file_status_without_validation_results(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -1,6 +1,6 @@
 # 🍎 Flutter iOS Check
 
-A local command-line tool for inspecting a Flutter project's iOS readiness before opening Xcode or testing on a device. It reads project files, applies static validation rules, and reports actionable findings.
+Flutter iOS Check is a local command-line tool for inspecting a Flutter project's iOS readiness before opening Xcode or testing on a device. It reads project files, applies static validation rules, and reports actionable findings.
 
 The analyzer does not modify the target project, contact Firebase or Apple services, run Xcode, or make network requests.
 

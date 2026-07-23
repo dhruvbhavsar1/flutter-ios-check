@@ -1,1 +1,1 @@
-"""Tests for the Flutter iOS Readiness Analyzer."""
+"""Tests for Flutter iOS Check."""

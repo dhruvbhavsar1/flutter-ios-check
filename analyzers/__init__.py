@@ -1,1 +1,1 @@
-"""Analyzer modules for the Flutter iOS Readiness Analyzer."""
+"""Analyzer modules for Flutter iOS Check."""
